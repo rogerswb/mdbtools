@@ -334,8 +334,8 @@ MdbHandle *mdb_clone_handle(MdbHandle *mdb)
 	return newmdb;
 }
 
-/* 
-** mdb_read a wrapper for read that bails if anything is wrong 
+/*
+** mdb_read a wrapper for read that bails if anything is wrong
 */
 ssize_t mdb_read_pg(MdbHandle *mdb, unsigned long pg)
 {
@@ -344,7 +344,7 @@ ssize_t mdb_read_pg(MdbHandle *mdb, unsigned long pg)
 	if (pg && mdb->cur_pg == pg) return mdb->fmt->pg_size;
 
 	len = _mdb_read_pg(mdb, mdb->pg_buf, pg);
-	//fprintf(stderr, "read page %d type %02x\n", pg, mdb->pg_buf[0]);
+
 	mdb->cur_pg = pg;
 	/* kan - reset the cur_pos on a new page read */
 	mdb->cur_pos = 0; /* kan */

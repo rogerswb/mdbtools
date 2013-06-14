@@ -21,7 +21,7 @@ typedef struct {
 	MdbSargNode *sarg_tree;
 	GList *sarg_stack;
 	/* FIX ME */
-	void *bound_values[256];
+	GPtrArray *bound_values;
 	unsigned char *kludge_ttable_pg;
 	long max_rows;
 	char error_msg[1024];
@@ -78,6 +78,7 @@ extern MdbSQL* mdb_sql_run_query (MdbSQL*, const gchar*);
 extern void mdb_sql_set_maxrow(MdbSQL *sql, int maxrow);
 extern int mdb_sql_eval_expr(MdbSQL *sql, char *const1, int op, char *const2);
 extern void mdb_sql_bind_all(MdbSQL *sql);
+extern void mdb_sql_unbind_all(MdbSQL *sql);
 extern int mdb_sql_fetch_row(MdbSQL *sql, MdbTableDef *table);
 extern int mdb_sql_add_temp_col(MdbSQL *sql, MdbTableDef *ttable, int col_num, char *name, int col_type, int col_size, int is_fixed);
 extern void mdb_sql_bind_column(MdbSQL *sql, int colnum, void *varaddr, int *len_ptr);

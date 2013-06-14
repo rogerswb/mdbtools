@@ -516,6 +516,7 @@ extern int mdb_add_sarg_by_name(MdbTableDef *table, char *colname, MdbSarg *in_s
 extern int mdb_test_string(MdbSargNode *node, char *s);
 extern int mdb_test_int(MdbSargNode *node, gint32 i);
 extern int mdb_add_sarg(MdbColumn *col, MdbSarg *in_sarg);
+extern void mdb_free_sarg_tree(MdbSargNode *tree);
 
 
 

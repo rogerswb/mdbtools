@@ -308,3 +308,9 @@ int mdb_add_sarg_by_name(MdbTableDef *table, char *colname, MdbSarg *in_sarg)
 	/* else didn't find the column return 0! */
 	return 0;
 }
+void mdb_free_sarg_tree(MdbSargNode *tree) {
+	if (tree->left) mdb_free_sarg_tree(tree->left);
+	if (tree->right) mdb_free_sarg_tree(tree->right);
+    if (tree->parent) g_free(tree->parent);
+	g_free(tree);
+}
