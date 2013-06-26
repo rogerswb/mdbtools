@@ -1250,8 +1250,6 @@ SQLRETURN SQL_API SQLFreeHandle(
 {
 	TRACE("SQLFreeHandle");
 
-	g_ptr_array_remove(handles, (gpointer) Handle);
-
 	switch(HandleType) {
 		case SQL_HANDLE_STMT:
 			_SQLFreeStmt(Handle,SQL_DROP);
@@ -1275,6 +1273,7 @@ static SQLRETURN SQL_API _SQLFreeConnect(
 
 	FreeConnectParams(dbc->params);
 	g_free(dbc);
+	g_ptr_array_remove(handles, (gpointer) hdbc);
 
 	return SQL_SUCCESS;
 }
@@ -1298,6 +1297,7 @@ static SQLRETURN SQL_API _SQLFreeEnv(
 	mdb_sql_exit(env->sql);
 	g_free(env->sql);
 	g_free(env);
+	g_ptr_array_remove(handles, (gpointer) henv);
 
 	refCount--;
 	if (refCount == 0)
@@ -1326,7 +1326,7 @@ static SQLRETURN SQL_API _SQLFreeStmt(
 		mdb_sql_reset(sql);
 		unbind_columns(stmt);
 		g_free(stmt);
-
+        g_ptr_array_remove(handles, (gpointer) hstmt);
 	} else if (fOption==SQL_CLOSE) {
 		stmt->rows_affected = 0;
 	} else if (fOption==SQL_UNBIND) {
@@ -1957,44 +1957,55 @@ SQLRETURN SQL_API SQLGetFunctions(
 }
 
 static SQLRETURN SQL_API _SQLGetInfo(
-	SQLHDBC			   hdbc,
-	SQLUSMALLINT	   fInfoType,
-	SQLPOINTER		   rgbInfoValue,
-	SQLSMALLINT		   cbInfoValueMax,
-	SQLSMALLINT		  *pcbInfoValue)
+    SQLHDBC            hdbc,
+    SQLUSMALLINT       fInfoType,
+    SQLPOINTER         rgbInfoValue,
+    SQLSMALLINT        cbInfoValueMax,
+    SQLSMALLINT       *pcbInfoValue)
 {
 	TRACE("_SQLGetInfo");
 	switch (fInfoType) {
 	case SQL_MAX_STATEMENT_LEN:
-		*((SQLUINTEGER *)rgbInfoValue) = (SQLUINTEGER) 65000;
-		//pcbInfoValue seems to be coming in NULL sometimes
-		if(pcbInfoValue)
+		if (rgbInfoValue)
+			*((SQLUINTEGER *)rgbInfoValue) = (SQLUINTEGER)65000;
+		if (pcbInfoValue)
 			*pcbInfoValue = sizeof(SQLUINTEGER);
-		break;
+	break;
 	case SQL_SCHEMA_USAGE:
-		*((SQLSMALLINT *)rgbInfoValue) = (SQLSMALLINT) 0;
-		if(pcbInfoValue)
+		if (rgbInfoValue)
+			*((SQLSMALLINT *)rgbInfoValue) = (SQLSMALLINT)0;
+		if (pcbInfoValue)
 			*pcbInfoValue = sizeof(SQLSMALLINT);
-		break;
+	break;
 	case SQL_CATALOG_NAME_SEPARATOR:
-		memcpy(rgbInfoValue,".",1);
-		if(pcbInfoValue)
+		if (rgbInfoValue)
+			memcpy(rgbInfoValue, ".", 1);
+		if (pcbInfoValue)
 			*pcbInfoValue = 1;
-		break;
+	break;
 	case SQL_CATALOG_LOCATION:
-		*((SQLSMALLINT *)rgbInfoValue) = (SQLSMALLINT) 1;
-		if(pcbInfoValue)
+		if (rgbInfoValue)
+			*((SQLSMALLINT *)rgbInfoValue) = (SQLSMALLINT)1;
+		if (pcbInfoValue)
 			*pcbInfoValue = sizeof(SQLSMALLINT);
-		break;
+	break;
 	case SQL_IDENTIFIER_QUOTE_CHAR:
-		memcpy(rgbInfoValue,"\"",1);
-		if(pcbInfoValue)
+		if (rgbInfoValue)
+			memcpy(rgbInfoValue, "\"", 1);
+		if (pcbInfoValue)
 			*pcbInfoValue = 1;
-		break;
+	break;
 	case SQL_DBMS_NAME:
-		if(pcbInfoValue)
-			*pcbInfoValue = 8;
-		break;
+		if (rgbInfoValue)
+			strncpy(rgbInfoValue, "MDBTOOLS", cbInfoValueMax);
+		if (pcbInfoValue)
+			*pcbInfoValue = 9;
+	break;
+	default:
+		if (pcbInfoValue)
+			*pcbInfoValue = 0;
+		strcpy(sqlState, "HYC00");
+		return SQL_ERROR;
 	}
 
 	return SQL_SUCCESS;
