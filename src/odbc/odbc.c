@@ -1948,12 +1948,18 @@ static SQLRETURN SQL_API _SQLGetData(
 			break;
 		}
 #endif
-		default: /* FIXME here we assume fCType == SQL_C_CHAR */
+		default:
 		to_c_char:
 		{
 			char *str = mdb_col_to_string(mdb, mdb->pg_buf,
 				col->cur_value_start, col->col_type, col->cur_value_len);
 			int len = strlen(str);
+
+			char *pos;
+			int copyLen, charWidth;;
+
+			SQLRETURN ret = SQL_SUCCESS;
+
 			if (stmt->pos >= len) {
 				free(str);
 				return SQL_NO_DATA;
@@ -1964,23 +1970,51 @@ static SQLRETURN SQL_API _SQLGetData(
 				free(str);
 				return SQL_SUCCESS_WITH_INFO;
 			}
-			if (len - stmt->pos > cbValueMax) {
-				/* the buffer we were given is too small, so
+
+			/* Determine the size of the characters before copying */
+			if(fCType == SQL_C_CHAR)
+				charWidth = sizeof(SQLCHAR);
+			else if(fCType == SQL_C_WCHAR)
+				charWidth = sizeof(SQLWCHAR);
+			else
+				charWidth = sizeof(SQLCHAR); /* If it's some other type, just use SQL_C_CHAR; This should be handled differently in the future */
+
+			/* the buffer we were given is too small, so
 				   truncate it to the size of the buffer */
-				strncpy(rgbValue, str, cbValueMax);
-				if (pcbValue)
-					*pcbValue = cbValueMax;
-				stmt->pos += cbValueMax;
-				free(str);
+			if (len - stmt->pos > cbValueMax/charWidth - 1) {
+				pos = str;
+				copyLen = cbValueMax/charWidth - 1;
+
+				/* Shift position in the data string */
+				stmt->pos += cbValueMax/charWidth - 1;
+
 				diag_addrec((_handle*) stmt, "01004", 0, "String data, right truncated");
-				return SQL_SUCCESS_WITH_INFO;
+				ret = SQL_SUCCESS_WITH_INFO;
 			}
-			strncpy(rgbValue, str + stmt->pos, len - stmt->pos);
+			/* Otherwise, copy it all */
+			else {
+				pos = str + stmt->pos;
+				copyLen = len - stmt->pos;
+
+				/* Shift position in the data string */
+				stmt->pos += len - stmt->pos;
+			}
+
+			if(fCType == SQL_C_CHAR)
+				strncpy(rgbValue, pos, copyLen);
+			else if(fCType == SQL_C_WCHAR) {
+				/* Yes, this is ugly, but also works */
+				int i;
+				for(i=0; i<copyLen; i++)
+					((SQLWCHAR*) rgbValue)[i] = (SQLWCHAR) pos[i];
+				((SQLWCHAR*) rgbValue)[copyLen] = '\0';
+			}
+
 			if (pcbValue)
-				*pcbValue = len - stmt->pos;
-			stmt->pos += len - stmt->pos;
+				*pcbValue = copyLen*charWidth;
+
 			free(str);
-			break;
+			return ret;
 		}
 	}
 	return SQL_SUCCESS;
