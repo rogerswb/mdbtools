@@ -59,6 +59,13 @@ static void diag_free(_handle *);
 #define MIN(a,b) (a>b ? b : a)
 #endif
 
+/* Since a query string is dynamic, this specifies an additional amount
+   of memory to allocate in case the string needs to be modified prior
+   to execution (like in _odbc_fix_literals, for example).  This
+   amount was arbitrarily chosen, and currently seems large enough
+   for simple cases, but should be changed if needed. */
+#define QUERY_ADDL_LEN 1024
+
 typedef struct {
 	SQLCHAR *type_name;
 	SQLSMALLINT data_type;
@@ -186,36 +193,36 @@ static SQLRETURN do_connect (
 }
 
 static SQLRETURN SQL_API _SQLDriverConnect(
-    SQLHDBC            hdbc,
-    SQLHWND            hwnd,
+    SQLHDBC         hdbc,
+    SQLHWND         hwnd,
     SQLCHAR        *szConnStrIn,
-    SQLSMALLINT        cbConnStrIn,
+    SQLSMALLINT     cbConnStrIn,
     SQLCHAR        *szConnStrOut,
-    SQLSMALLINT        cbConnStrOutMax,
+    SQLSMALLINT     cbConnStrOutMax,
     SQLSMALLINT    *pcbConnStrOut,
-    SQLUSMALLINT       fDriverCompletion)
+    SQLUSMALLINT    fDriverCompletion)
 {
 	char* dsn = NULL;
 	char* database = NULL;
 	ConnectParams* params;
 	SQLRETURN ret;
-    struct _hdbc *dbc;
+	struct _hdbc *dbc;
 
 	TRACE("_SQLDriverConnect");
 
-    dbc = (struct _hdbc*) hdbc;
+	dbc = (struct _hdbc*) hdbc;
 	params = dbc->params;
 
-    diag_reset((_handle*) dbc);
+	diag_reset((_handle*) dbc);
 
 	if ((dsn = ExtractDSN (params, (gchar*)szConnStrIn))) {
 		if (!LookupDSN (params, dsn)){
-            diag_addrec((_handle*) dbc, "08001", 0, "Could not find DSN in odbc.ini");
+			diag_addrec((_handle*) dbc, "08001", 0, "Could not find DSN in odbc.ini");
 			return SQL_ERROR;
 		}
 		SetConnectString (params, (gchar*)szConnStrIn);
 		if (!(database = GetConnectParam (params, "Database"))){
-            diag_addrec((_handle*) dbc, "08001", 0, "Could not find Database parameter");
+			diag_addrec((_handle*) dbc, "08001", 0, "Could not find Database parameter");
 			return SQL_ERROR;
 		}
 		ret = do_connect (hdbc, database); /* Need error here */
@@ -225,7 +232,7 @@ static SQLRETURN SQL_API _SQLDriverConnect(
 		ret = do_connect (hdbc, database);
 		return ret;
 	}
-    diag_addrec((_handle*) dbc, "08001", 0, "Could not find DSN nor DBQ in connect string");
+	diag_addrec((_handle*) dbc, "08001", 0, "Could not find DSN nor DBQ in connect string");
 	return SQL_ERROR;
 }
 
@@ -326,11 +333,11 @@ SQLRETURN SQL_API SQLExtendedFetch(
 
 	TRACE("SQLExtendedFetch");
 
-    diag_reset((_handle*) stmt);
+	diag_reset((_handle*) stmt);
 
 	if (fFetchType!=SQL_FETCH_NEXT) {
-        // Not sure which SQL state is most appropriate for this error
-        diag_addrec((_handle*) stmt, "HY106", 0, "Fetch type not supported in SQLExtendedFetch");
+		// Not sure which SQL state is most appropriate for this error
+		diag_addrec((_handle*) stmt, "HY106", 0, "Fetch type not supported in SQLExtendedFetch");
 		return SQL_ERROR;
 	}
 	if (pcrow)
@@ -539,12 +546,12 @@ struct _hdbc* dbc;
 	TRACE("_SQLAllocConnect");
 	env = (struct _henv *) henv;
 	dbc = (SQLHDBC) g_malloc0(sizeof(struct _hdbc));
-    dbc->type = SQL_HANDLE_DBC;
+	dbc->type = SQL_HANDLE_DBC;
 	dbc->henv=env;
 	g_ptr_array_add(env->connections, dbc);
 	dbc->params = NewConnectParams ();
 	dbc->statements = g_ptr_array_new();
-    diag_init((_handle*) dbc);
+	diag_init((_handle*) dbc);
 	*phdbc=dbc;
 
 	return SQL_SUCCESS;
@@ -564,10 +571,10 @@ struct _henv *env;
 
 	TRACE("_SQLAllocEnv");
 	env = (SQLHENV) g_malloc0(sizeof(struct _henv));
-    env->type = SQL_HANDLE_ENV;
+	env->type = SQL_HANDLE_ENV;
 	env->sql = mdb_sql_init();
 	env->connections = g_ptr_array_new();
-    diag_init((_handle*) env);
+	diag_init((_handle*) env);
 	*phenv=env;
 	return SQL_SUCCESS;
 }
@@ -590,10 +597,10 @@ static SQLRETURN SQL_API _SQLAllocStmt(
 	dbc = (struct _hdbc *) hdbc;
 
 	stmt = (SQLHSTMT) g_malloc0(sizeof(struct _hstmt));
-    stmt->type = SQL_HANDLE_STMT;
+	stmt->type = SQL_HANDLE_STMT;
 	stmt->hdbc=dbc;
 	g_ptr_array_add(dbc->statements, stmt);
-    diag_init((_handle*) stmt);
+	diag_init((_handle*) stmt);
 
 	*phstmt = stmt;
 	return SQL_SUCCESS;
@@ -675,25 +682,25 @@ static SQLRETURN SQL_API _SQLConnect(
 	char* database = NULL;
 	ConnectParams* params;
 	SQLRETURN ret;
-    struct _hdbc *dbc;
+	struct _hdbc *dbc;
 
 	TRACE("_SQLConnect");
 
-    dbc = (struct _hdbc*) hdbc;
+	dbc = (struct _hdbc*) hdbc;
 	params = dbc->params;
 
-    diag_reset((_handle*) dbc);
+	diag_reset((_handle*) dbc);
 
 	params->dsnName = g_string_assign (params->dsnName, (gchar*)szDSN);
 
 	if (!LookupDSN (params, (gchar*)szDSN))
 	{
-        diag_addrec((_handle*) dbc, "08001", 0, "Could not find DSN in odbc.ini");
+		diag_addrec((_handle*) dbc, "08001", 0, "Could not find DSN in odbc.ini");
 		return SQL_ERROR;
 	}
 	else if (!(database = GetConnectParam (params, "Database")))
 	{
-        diag_addrec((_handle*) dbc, "08001", 0, "Could not find Database parameter");
+		diag_addrec((_handle*) dbc, "08001", 0, "Could not find Database parameter");
 		return SQL_ERROR;
 	}
 
@@ -767,10 +774,10 @@ static SQLRETURN SQL_API _SQLDescribeCol(
 
 	TRACE("_SQLDescribeCol");
 
-    diag_reset((_handle*) stmt);
+	diag_reset((_handle*) stmt);
 
 	if (icol<1 || icol>sql->num_columns) {
-        diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
+		diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
 		return SQL_ERROR;
 	}
 	sqlcol = g_ptr_array_index(sql->columns,icol - 1);
@@ -782,7 +789,7 @@ static SQLRETURN SQL_API _SQLDescribeCol(
 		}
 	}
 	if (i==table->num_cols) {
-        diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index - Column lost");
+		diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index - Column lost");
 		return SQL_ERROR;
 	}
 
@@ -792,7 +799,7 @@ static SQLRETURN SQL_API _SQLDescribeCol(
 		*pcbColName=namelen;
 	if (szColName) {
 		if (cbColNameMax < 0) {
-            diag_addrec((_handle*) stmt, "HY090", 0, "Invalid string or buffer length");
+			diag_addrec((_handle*) stmt, "HY090", 0, "Invalid string or buffer length");
 			return SQL_ERROR;
 		}
 		if (namelen + 1 < cbColNameMax) {
@@ -804,7 +811,7 @@ static SQLRETURN SQL_API _SQLDescribeCol(
 				szColName[cbColNameMax-1] = '\0';
 			}
 			// So there is no \0 if cbColNameMax was 0
-            diag_addrec((_handle*) stmt, "01004", 0, "String data, right truncated");
+			diag_addrec((_handle*) stmt, "01004", 0, "String data, right truncated");
 			ret = SQL_SUCCESS_WITH_INFO;
 		}
 	}
@@ -891,7 +898,7 @@ static SQLRETURN SQL_API _SQLColAttributes(
 	env = (struct _henv *) dbc->henv;
 	sql = env->sql;
 
-    diag_reset((_handle*) stmt);
+	diag_reset((_handle*) stmt);
 
 	/* dont check column index for these */
 	switch(fDescType) {
@@ -903,7 +910,7 @@ static SQLRETURN SQL_API _SQLColAttributes(
 	}
 
 	if (icol<1 || icol>sql->num_columns) {
-        diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
+		diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
 		return SQL_ERROR;
 	}
 
@@ -914,10 +921,10 @@ static SQLRETURN SQL_API _SQLColAttributes(
 		col=g_ptr_array_index(table->columns,i);
 		if (!g_ascii_strcasecmp(sqlcol->name, col->name)) {
 			break;
-          	}
+		  	}
 	}
 	if (i==table->num_cols) {
-        diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
+		diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
 		return SQL_ERROR;
 	}
 
@@ -927,7 +934,7 @@ static SQLRETURN SQL_API _SQLColAttributes(
 		case SQL_COLUMN_NAME: case SQL_DESC_NAME:
 		case SQL_COLUMN_LABEL: /* = SQL_DESC_LABEL */
 			if (cbDescMax < 0) {
-                diag_addrec((_handle*) stmt, "HY090", 0, "Invalid string or buffer length");
+				diag_addrec((_handle*) stmt, "HY090", 0, "Invalid string or buffer length");
 				return SQL_ERROR;
 			}
 			namelen = strlen(sqlcol->name);
@@ -939,7 +946,7 @@ static SQLRETURN SQL_API _SQLColAttributes(
 					((char*)rgbDesc)[cbDescMax-1] = '\0';
 				}
 				// So there is no \0 if cbDescMax was 0
-                diag_addrec((_handle*) stmt, "01004", 0, "String data, right truncated");
+				diag_addrec((_handle*) stmt, "01004", 0, "String data, right truncated");
 				ret = SQL_SUCCESS_WITH_INFO;
 			}
 			break;
@@ -952,7 +959,7 @@ static SQLRETURN SQL_API _SQLColAttributes(
 		case SQL_COLUMN_DISPLAY_SIZE: /* =SQL_DESC_DISPLAY_SIZE */
 			*pfDesc = mdb_col_disp_size(col);
 			break;
-        case SQL_DESC_UNSIGNED:
+		case SQL_DESC_UNSIGNED:
 			switch(col->col_type) {
 				case MDB_INT:
 				case MDB_LONGINT:
@@ -968,7 +975,7 @@ static SQLRETURN SQL_API _SQLColAttributes(
 			}
 			break;
 		default:
-            diag_addrec((_handle*) stmt, "HYC00", 0, "Driver not capable - Unimplemented column attribute");
+			diag_addrec((_handle*) stmt, "HYC00", 0, "Driver not capable - Unimplemented column attribute");
 			ret = SQL_ERROR;
 			break;
 	}
@@ -1044,20 +1051,20 @@ static SQLRETURN SQL_API _SQLError(
 	TRACE("_SQLError");
 	//if(pfNativeError)fprintf(stderr,"NativeError %05d\n", *pfNativeError);
 
-    _handle *hand;
-    if(hstmt)
-        hand = (_handle*) hstmt;
-    else if(hdbc)
-        hand = (_handle*) hdbc;
-    else if(henv)
-        hand = (_handle*) henv;
-    else
-        return SQL_SUCCESS; /* Not sure of this behavior; hard to find the old reference documents */
+	_handle *hand;
+	if(hstmt)
+		hand = (_handle*) hstmt;
+	else if(hdbc)
+		hand = (_handle*) hdbc;
+	else if(henv)
+		hand = (_handle*) henv;
+	else
+		return SQL_SUCCESS; /* Not sure of this behavior; hard to find the old reference documents */
 
-    /* TODO: Determine actual SQLError behavior for multiple records and implement it */
-    /* Currently, just returns records oldest to youngest for each subsequent call */
-    hand->errRec++;
-    return SQLGetDiagRec(hand->type, (SQLHANDLE) hand, hand->errRec, szSqlState, pfNativeError, szErrorMsg, cbErrorMsgMax, pcbErrorMsg);
+	/* TODO: Determine actual SQLError behavior for multiple records and implement it */
+	/* Currently, just returns records oldest to youngest for each subsequent call */
+	hand->errRec++;
+	return SQLGetDiagRec(hand->type, (SQLHANDLE) hand, hand->errRec, szSqlState, pfNativeError, szErrorMsg, cbErrorMsgMax, pcbErrorMsg);
 }
 
 SQLRETURN SQL_API SQLError(
@@ -1114,7 +1121,7 @@ static SQLRETURN SQL_API _SQLExecute( SQLHSTMT hstmt)
 
 	TRACE("_SQLExecute");
 
-    diag_reset((_handle*) stmt);
+	diag_reset((_handle*) stmt);
 
 	/* fprintf(stderr,"query = %s\n",stmt->query); */
 	_odbc_fix_literals(stmt);
@@ -1123,7 +1130,7 @@ static SQLRETURN SQL_API _SQLExecute( SQLHSTMT hstmt)
 
 	mdb_sql_run_query(env->sql, stmt->query);
 	if (mdb_sql_has_error(env->sql)) {
-        diag_addrec((_handle*) stmt, "HY000", 0, "Couldn't parse SQL");
+		diag_addrec((_handle*) stmt, "HY000", 0, "Couldn't parse SQL");
 		mdb_sql_reset(env->sql);
 		return SQL_ERROR;
 	} else {
@@ -1139,6 +1146,11 @@ static SQLRETURN SQL_API _SQLExecDirect(
 	struct _hstmt *stmt = (struct _hstmt *) hstmt;
 
 	TRACE("_SQLExecDirect");
+
+	if(stmt->query)
+		g_free(stmt->query);
+	stmt->query = (char *) g_malloc0(strlen((char*)szSqlStr) + QUERY_ADDL_LEN);
+
 	strcpy(stmt->query, (char*)szSqlStr);
 
 	return _SQLExecute(hstmt);
@@ -1195,17 +1207,17 @@ bind_columns(struct _hstmt *stmt)
 		cur = stmt->bind_head;
 		while (cur) {
 			if (cur->column_number>0 &&
-			    cur->column_number <= env->sql->num_columns) {
+				cur->column_number <= env->sql->num_columns) {
 				mdb_sql_bind_column(env->sql, cur->column_number,
-				                    cur->varaddr, cur->column_lenbind);
+									cur->varaddr, cur->column_lenbind);
 			} else {
 				/* log error ? */
-                /* In order to do so, we need to modify this to notify SQLBindCol
-                   of the error, so it can, in turn, notify the user.*/
-                   /* if(cur->column_number == 0) */
-                   /*     diag_addrec((_handle*) stmt, "HYC00", 0, "Column 0 is an invalid column number"); */
-                   /* else if(cur->column_number > env->sql->num_columns) */
-                   /*     diag_addrec((_handle*) stmt, "07009", 0, "Column number exceeded he maximum number of columns in the result set"); */
+				/* In order to do so, we need to modify this to notify SQLBindCol
+				   of the error, so it can, in turn, notify the user.*/
+				   /* if(cur->column_number == 0) */
+				   /*	 diag_addrec((_handle*) stmt, "HYC00", 0, "Column 0 is an invalid column number"); */
+				   /* else if(cur->column_number > env->sql->num_columns) */
+				   /*	 diag_addrec((_handle*) stmt, "07009", 0, "Column number exceeded he maximum number of columns in the result set"); */
 			}
 			cur = cur->next;
 		}
@@ -1285,18 +1297,18 @@ static SQLRETURN SQL_API _SQLFreeConnect(
 
 	env = dbc->henv;
 
-    diag_reset((_handle*) dbc);
+	diag_reset((_handle*) dbc);
 
 	if (dbc->statements->len) {
 		// Function sequence error
-        diag_addrec((_handle*) dbc, "HY010", 0, "Function sequence error - Driver still connected");
+		diag_addrec((_handle*) dbc, "HY010", 0, "Function sequence error - Driver still connected");
 		return SQL_ERROR;
 	}
 	if (!g_ptr_array_remove(env->connections, dbc))
 		return SQL_INVALID_HANDLE;
 
 	FreeConnectParams(dbc->params);
-    diag_free((_handle*) dbc);
+	diag_free((_handle*) dbc);
 	g_ptr_array_free(dbc->statements, TRUE);
 	g_free(dbc);
 
@@ -1317,15 +1329,15 @@ static SQLRETURN SQL_API _SQLFreeEnv(
 
 	TRACE("_SQLFreeEnv");
 
-    diag_reset((_handle*) env);
+	diag_reset((_handle*) env);
 
 	if (env->connections->len) {
 		// Function sequence error
-        diag_addrec((_handle*) env, "HY010", 0, "Function sequence error - Connection still allocated");
+		diag_addrec((_handle*) env, "HY010", 0, "Function sequence error - Connection still allocated");
 		return SQL_ERROR;
 	}
 
-    diag_free((_handle*) env);
+	diag_free((_handle*) env);
 	g_ptr_array_free(env->connections, TRUE);
 	mdb_sql_exit(env->sql);
 	g_free(env);
@@ -1350,14 +1362,16 @@ static SQLRETURN SQL_API _SQLFreeStmt(
 
 	TRACE("_SQLFreeStmt");
 
-    diag_reset((_handle*) stmt);
+	diag_reset((_handle*) stmt);
 
 	if (fOption==SQL_DROP) {
 		if (!g_ptr_array_remove(dbc->statements, stmt))
 			return SQL_INVALID_HANDLE;
 		mdb_sql_reset(sql);
 		unbind_columns(stmt);
-        diag_free((_handle*) stmt);
+		diag_free((_handle*) stmt);
+		if(stmt->query)
+			g_free(stmt->query);
 		g_free(stmt);
 	} else if (fOption==SQL_CLOSE) {
 		stmt->rows_affected = 0;
@@ -1365,8 +1379,8 @@ static SQLRETURN SQL_API _SQLFreeStmt(
 		unbind_columns(stmt);
 	} else if (fOption==SQL_RESET_PARAMS) {
 		/* Bound parameters not currently implemented */
-        diag_addrec((_handle*) stmt, "HYC00", 0, "Bound parameters are currently unimplemented");
-        return SQL_ERROR;
+		diag_addrec((_handle*) stmt, "HYC00", 0, "Bound parameters are currently unimplemented");
+		return SQL_ERROR;
 	} else {
 	}
 	return SQL_SUCCESS;
@@ -1402,49 +1416,49 @@ SQLRETURN SQL_API SQLGetCursorName(
 
 static void diag_init(_handle *hand)
 {
-    TRACE("diag_addrec");
+	TRACE("diag_addrec");
 
-    hand->errRec = 0;
-    hand->diagrecs = g_ptr_array_new();
+	hand->errRec = 0;
+	hand->diagrecs = g_ptr_array_new();
 }
 
 static void diag_addrec(_handle *hand, char *sqlState, int nativeErr, char *errMsg)
 {
-    struct _diagrec *dr;
+	struct _diagrec *dr;
 
-    TRACE("diag_addrec");
+	TRACE("diag_addrec");
 
-    dr = (struct _diagrec *) g_malloc0(sizeof(struct _diagrec));
+	dr = (struct _diagrec *) g_malloc0(sizeof(struct _diagrec));
 
-    strcpy(dr->sqlState, sqlState);
-    dr->nativeErr = nativeErr;
-    dr->errMsg = (char *) g_malloc0(strlen(errMsg)+1);
-    strcpy(dr->errMsg, errMsg);
+	strcpy(dr->sqlState, sqlState);
+	dr->nativeErr = nativeErr;
+	dr->errMsg = (char *) g_malloc0(strlen(errMsg)+1);
+	strcpy(dr->errMsg, errMsg);
 
-    g_ptr_array_add(hand->diagrecs, dr);
+	g_ptr_array_add(hand->diagrecs, dr);
 }
 
 static void diag_reset(_handle *hand)
 {
-    struct _diagrec *dr;
+	struct _diagrec *dr;
 
-    TRACE("diag_reset");
+	TRACE("diag_reset");
 
-    hand->errRec = 0;
+	hand->errRec = 0;
 
-    while(hand->diagrecs->len)
-    {
-        dr = (struct _diagrec *) g_ptr_array_index(hand->diagrecs, 0);
-        g_free(dr->errMsg);
-        g_free(dr);
-        g_ptr_array_remove_index(hand->diagrecs, 0);
-    }
+	while(hand->diagrecs->len)
+	{
+		dr = (struct _diagrec *) g_ptr_array_index(hand->diagrecs, 0);
+		g_free(dr->errMsg);
+		g_free(dr);
+		g_ptr_array_remove_index(hand->diagrecs, 0);
+	}
 }
 
 static void diag_free(_handle *hand)
 {
-    diag_reset(hand);
-    g_ptr_array_free(hand->diagrecs, TRUE);
+	diag_reset(hand);
+	g_ptr_array_free(hand->diagrecs, TRUE);
 }
 
 SQLRETURN SQL_API SQLGetDiagRec(
@@ -1457,43 +1471,43 @@ SQLRETURN SQL_API SQLGetDiagRec(
     SQLSMALLINT        BufferLength,
     SQLSMALLINT       *TextLengthPtr)
 {
-    TRACE("SQLGetDiagRec");
+	TRACE("SQLGetDiagRec");
 
-    _handle *hand = (_handle *) Handle;
+	_handle *hand = (_handle *) Handle;
 
-    if(HandleType != hand->type)
-        return SQL_INVALID_HANDLE;
-    if(RecNumber <= 0 || BufferLength < 0)
-        return SQL_ERROR;
-    if(RecNumber > hand->diagrecs->len)
-        return SQL_NO_DATA;
+	if(HandleType != hand->type)
+		return SQL_INVALID_HANDLE;
+	if(RecNumber <= 0 || BufferLength < 0)
+		return SQL_ERROR;
+	if(RecNumber > hand->diagrecs->len)
+		return SQL_NO_DATA;
 
-    struct _diagrec *rec = (struct _diagrec *) g_ptr_array_index(hand->diagrecs, hand->diagrecs->len - RecNumber);
+	struct _diagrec *rec = (struct _diagrec *) g_ptr_array_index(hand->diagrecs, hand->diagrecs->len - RecNumber);
 
-    if(SQLState)
-        strcpy((char*)SQLState, rec->sqlState);
+	if(SQLState)
+		strcpy((char*)SQLState, rec->sqlState);
 
-    if(NativeErrorPtr)
-        *NativeErrorPtr = rec->nativeErr;
+	if(NativeErrorPtr)
+		*NativeErrorPtr = rec->nativeErr;
 
-    SQLRETURN result = SQL_SUCCESS;
-    if(MessageText) {
-        unsigned int len = strlen(rec->errMsg);
+	SQLRETURN result = SQL_SUCCESS;
+	if(MessageText) {
+		unsigned int len = strlen(rec->errMsg);
 
-        if(len > BufferLength - 1) {
-            len = BufferLength - 1;
-            strncpy((char*)MessageText, rec->errMsg, len);
-            MessageText[BufferLength] = '\0';
-            result = SQL_SUCCESS_WITH_INFO;
-        }
-        else
-            strcpy((char*)MessageText, rec->errMsg);
+		if(len > BufferLength - 1) {
+			len = BufferLength - 1;
+			strncpy((char*)MessageText, rec->errMsg, len);
+			MessageText[BufferLength] = '\0';
+			result = SQL_SUCCESS_WITH_INFO;
+		}
+		else
+			strcpy((char*)MessageText, rec->errMsg);
 
-        if(TextLengthPtr)
-            *TextLengthPtr = len;
-    }
+		if(TextLengthPtr)
+			*TextLengthPtr = len;
+	}
 
-    return result;
+	return result;
 }
 
 SQLRETURN SQL_API SQLNumResultCols(
@@ -1518,6 +1532,10 @@ SQLRETURN SQL_API SQLPrepare(
 	int sqllen = _odbc_get_string_size(cbSqlStr, szSqlStr);
 
 	TRACE("SQLPrepare");
+
+	if(stmt->query)
+		g_free(stmt->query);
+	stmt->query = (char *) g_malloc0(sqllen + QUERY_ADDL_LEN);
 
 	strncpy(stmt->query, (char*)szSqlStr, sqllen);
 	stmt->query[sqllen]='\0';
@@ -1628,7 +1646,7 @@ static SQLRETURN SQL_API _SQLColumns(
 	mdb_temp_columns_end(ttable);
 
 	for (i=0; i<mdb->num_catalog; i++) {
-     		entry = g_ptr_array_index(mdb->catalog, i);
+	 		entry = g_ptr_array_index(mdb->catalog, i);
 		/* TODO: Do more advanced matching */
 		if (g_ascii_strcasecmp((char*)szTableName, entry->object_name) != 0)
 			continue;
@@ -1745,10 +1763,10 @@ static SQLRETURN SQL_API _SQLGetData(
 	sql = env->sql;
 	mdb = sql->mdb;
 
-    diag_reset((_handle*) stmt);
+	diag_reset((_handle*) stmt);
 
 	if (icol<1 || icol>sql->num_columns) {
-        diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
+		diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
 		return SQL_ERROR;
 	}
 
@@ -1761,11 +1779,11 @@ static SQLRETURN SQL_API _SQLGetData(
 		}
 	}
 	if (i==table->num_cols) {
-        /* Not totally sure what this error is yet. Given the search performed above,
-           I think this would classify as some sort of MDB engine error */
-        diag_addrec((_handle*) stmt, "07009", 0, "Column not found");
+		/* Not totally sure what this error is yet. Given the search performed above,
+		   I think this would classify as some sort of MDB engine error */
+		diag_addrec((_handle*) stmt, "07009", 0, "Column not found");
 		return SQL_ERROR;
-    }
+	}
 
 	if (icol!=stmt->icol) {
 		stmt->icol=icol;
@@ -1773,7 +1791,7 @@ static SQLRETURN SQL_API _SQLGetData(
 	}
 
 	if (!rgbValue) {
-        diag_addrec((_handle*) stmt, "HY009", 0, "Output target cannot be NULL");
+		diag_addrec((_handle*) stmt, "HY009", 0, "Output target cannot be NULL");
 	 	return SQL_ERROR;
 	}
 
@@ -1788,7 +1806,7 @@ static SQLRETURN SQL_API _SQLGetData(
 		/* When NULL data is retrieved, non-null pcbValue is
 		   required */
 		if (!pcbValue) {
-            diag_addrec((_handle*) stmt, "22002", 0, "Retrieving NULL data requires length output target");
+			diag_addrec((_handle*) stmt, "22002", 0, "Retrieving NULL data requires length output target");
 			return SQL_ERROR;
 		}
 		*pcbValue = SQL_NULL_DATA;
@@ -1804,7 +1822,7 @@ static SQLRETURN SQL_API _SQLGetData(
 				goto found_bound_type;
 			}
 		}
-        diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
+		diag_addrec((_handle*) stmt, "07009", 0, "Invalid descriptor index");
 		return SQL_ERROR;
 	}
 	found_bound_type:
@@ -1826,7 +1844,7 @@ static SQLRETURN SQL_API _SQLGetData(
 			switch (fCType) {
 			case SQL_C_UTINYINT:
 				if (intValue<0 || intValue>UCHAR_MAX) {
-                    diag_addrec((_handle*) stmt->diagrecs, "22003", 0, "Numeric value out of range");
+					diag_addrec((_handle*) stmt->diagrecs, "22003", 0, "Numeric value out of range");
 					return SQL_ERROR;
 				}
 				*(SQLCHAR*)rgbValue = (SQLCHAR)intValue;
@@ -1836,7 +1854,7 @@ static SQLRETURN SQL_API _SQLGetData(
 			case SQL_C_TINYINT:
 			case SQL_C_STINYINT:
 				if (intValue<SCHAR_MIN || intValue>SCHAR_MAX) {
-                    diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
+					diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
 					return SQL_ERROR;
 				}
 				*(SQLSCHAR*)rgbValue = (SQLSCHAR)intValue;
@@ -1846,7 +1864,7 @@ static SQLRETURN SQL_API _SQLGetData(
 			case SQL_C_USHORT:
 			case SQL_C_SHORT:
 				if (intValue<0 || intValue>USHRT_MAX) {
-                    diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
+					diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
 					return SQL_ERROR;
 				}
 				*(SQLSMALLINT*)rgbValue = (SQLSMALLINT)intValue;
@@ -1855,7 +1873,7 @@ static SQLRETURN SQL_API _SQLGetData(
 				break;
 			case SQL_C_SSHORT:
 				if (intValue<SHRT_MIN || intValue>SHRT_MAX) {
-                    diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
+					diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
 					return SQL_ERROR;
 				}
 				*(SQLSMALLINT*)rgbValue = (SQLSMALLINT)intValue;
@@ -1864,7 +1882,7 @@ static SQLRETURN SQL_API _SQLGetData(
 				break;
 			case SQL_C_ULONG:
 				if (intValue<0 || intValue>UINT_MAX) {
-                    diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
+					diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
 					return SQL_ERROR;
 				}
 				*(SQLUINTEGER*)rgbValue = (SQLINTEGER)intValue;
@@ -1874,7 +1892,7 @@ static SQLRETURN SQL_API _SQLGetData(
 			case SQL_C_LONG:
 			case SQL_C_SLONG:
 				if (intValue<LONG_MIN || intValue>LONG_MAX) {
-                    diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
+				    diag_addrec((_handle*) stmt, "22003", 0, "Numeric value out of range");
 					return SQL_ERROR;
 				}
 				*(SQLINTEGER*)rgbValue = intValue;
@@ -1882,7 +1900,7 @@ static SQLRETURN SQL_API _SQLGetData(
 					*pcbValue = sizeof(SQLINTEGER);
 				break;
 			default:
-                diag_addrec((_handle*) stmt, "HYC00", 0, "Requested integer conversion type is unimplemented");
+				diag_addrec((_handle*) stmt, "HYC00", 0, "Requested integer conversion type is unimplemented");
 				return SQL_ERROR;
 			}
 			break;
@@ -1954,7 +1972,7 @@ static SQLRETURN SQL_API _SQLGetData(
 					*pcbValue = cbValueMax;
 				stmt->pos += cbValueMax;
 				free(str);
-                diag_addrec((_handle*) stmt, "01004", 0, "String data, right truncated");
+				diag_addrec((_handle*) stmt, "01004", 0, "String data, right truncated");
 				return SQL_SUCCESS_WITH_INFO;
 			}
 			strncpy(rgbValue, str + stmt->pos, len - stmt->pos);
@@ -2183,13 +2201,13 @@ static SQLRETURN SQL_API _SQLGetInfo(
     SQLSMALLINT        cbInfoValueMax,
     SQLSMALLINT       *pcbInfoValue)
 {
-    struct _hdbc *dbc;
+	struct _hdbc *dbc;
 
 	TRACE("_SQLGetInfo");
 
-    dbc = (struct _hdbc*) hdbc;
+	dbc = (struct _hdbc*) hdbc;
 
-    diag_reset((_handle*) dbc);
+	diag_reset((_handle*) dbc);
 
 	switch (fInfoType) {
 	case SQL_MAX_STATEMENT_LEN:
@@ -2237,7 +2255,7 @@ static SQLRETURN SQL_API _SQLGetInfo(
 	default:
 		if (pcbInfoValue)
 			*pcbInfoValue = 0;
-        diag_addrec((_handle*) dbc, "HYC00", 0, "Info type requested is unimplemented");
+		diag_addrec((_handle*) dbc, "HYC00", 0, "Info type requested is unimplemented");
 		return SQL_ERROR;
 	}
 
@@ -2481,7 +2499,7 @@ SQLRETURN SQL_API SQLTables( //sz* not used, so Unicode API not required.
 
 	/* TODO: Sort the return list by TYPE, CAT, SCHEM, NAME */
 	for (i=0; i<mdb->num_catalog; i++) {
-     		entry = g_ptr_array_index(mdb->catalog, i);
+	 		entry = g_ptr_array_index(mdb->catalog, i);
 
 		if (mdb_is_user_table(entry))
 			ttype = 0;
@@ -2529,10 +2547,12 @@ SQLRETURN SQL_API SQLDataSources(
 
 static int _odbc_fix_literals(struct _hstmt *stmt)
 {
-	char tmp[4096],begin_tag[11];
+	char *tmp, begin_tag[11];
 	char *s, *d, *p;
 	int i, quoted = 0, find_end = 0;
 	char quote_char;
+
+	tmp = (char *) g_malloc0(strlen(stmt->query) + QUERY_ADDL_LEN);
 
 	s=stmt->query;
 	d=tmp;
@@ -2558,11 +2578,12 @@ static int _odbc_fix_literals(struct _hstmt *stmt)
 				find_end = 1;
 			}
 		} else {
-			*d++=*s++;	
+			*d++=*s++;
 		}
 	}
 	*d='\0';
 	strcpy(stmt->query,tmp);
+	g_free(tmp);
 
 	return 0;
 }

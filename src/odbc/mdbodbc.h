@@ -36,40 +36,37 @@ extern "C" {
 #endif
 
 struct _diagrec {
-    char sqlState[6];
-    int nativeErr;
-    char *errMsg;
+	char sqlState[6];
+	int nativeErr;
+	char *errMsg;
 };
 
 typedef struct {
-    int type;
-    GPtrArray *diagrecs;
-    int errRec; /* This is a placeholder for SQLError */
+	int type;
+	GPtrArray *diagrecs;
+	int errRec; /* SQLError record position */
 } _handle;
 struct _henv {
-    int type;
-    GPtrArray *diagrecs;
-    int errRec;
+	int type;
+	GPtrArray *diagrecs;
+	int errRec;
 	MdbSQL *sql;
 	GPtrArray *connections;
 };
 struct _hdbc {
-    int type;
-    GPtrArray *diagrecs;
-    int errRec;
+	int type;
+	GPtrArray *diagrecs;
+	int errRec;
 	struct _henv *henv;
 	ConnectParams* params;
 	GPtrArray *statements;
 };
 struct _hstmt {
-    int type;
-    GPtrArray *diagrecs;
-    int errRec;
+	int type;
+	GPtrArray *diagrecs;
+	int errRec;
 	struct _hdbc *hdbc;
-	/* reminder to self: the following is here for testing purposes.
-	 * please make dynamic before checking in 
-	 */
-	char query[4096];
+	char *query;
 	struct _sql_bind_info *bind_head;
 	int rows_affected;
 	int icol; /* SQLGetData: last column */
