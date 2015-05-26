@@ -40,9 +40,12 @@ struct _diagrec {
     int nativeErr;
     char *errMsg;
 };
-
-struct _henv {
+struct _handle {
     int type;
+    GPtrArray *diagrecs;
+};
+struct _henv {
+     int type;
     GPtrArray *diagrecs;
 	MdbSQL *sql;
 	GPtrArray *connections;
