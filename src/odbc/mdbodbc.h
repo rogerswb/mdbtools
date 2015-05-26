@@ -35,16 +35,28 @@
 extern "C" {
 #endif
 
+struct _diagrec {
+    char sqlState[6];
+    int nativeErr;
+    char *errMsg;
+};
+
 struct _henv {
+    int type;
+    GPtrArray *diagrecs;
 	MdbSQL *sql;
 	GPtrArray *connections;
 };
 struct _hdbc {
+    int type;
+    GPtrArray *diagrecs;
 	struct _henv *henv;
 	ConnectParams* params;
 	GPtrArray *statements;
 };
 struct _hstmt {
+    int type;
+    GPtrArray *diagrecs;
 	struct _hdbc *hdbc;
 	/* reminder to self: the following is here for testing purposes.
 	 * please make dynamic before checking in 

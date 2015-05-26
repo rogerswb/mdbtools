@@ -48,6 +48,9 @@ static SQLRETURN SQL_API _SQLFreeStmt(SQLHSTMT hstmt, SQLUSMALLINT fOption);
 static void bind_columns (struct _hstmt*);
 static void unbind_columns (struct _hstmt*);
 
+static void diag_addrec(GPtrArray *, char *, int, char *);
+static void diag_reset(GPtrArray *);
+
 #define FILL_FIELD(f,v,s) mdb_fill_temp_field(f,v,s,0,0,0,0)
 
 #ifndef MIN
@@ -539,10 +542,12 @@ struct _hdbc* dbc;
 	TRACE("_SQLAllocConnect");
 	env = (struct _henv *) henv;
 	dbc = (SQLHDBC) g_malloc0(sizeof(struct _hdbc));
+    dbc->type = SQL_HANDLE_DBC;
 	dbc->henv=env;
 	g_ptr_array_add(env->connections, dbc);
 	dbc->params = NewConnectParams ();
 	dbc->statements = g_ptr_array_new();
+    dbc->diagrecs = g_ptr_array_new();
 	*phdbc=dbc;
 
 	return SQL_SUCCESS;
@@ -562,8 +567,10 @@ struct _henv *env;
 
 	TRACE("_SQLAllocEnv");
 	env = (SQLHENV) g_malloc0(sizeof(struct _henv));
+    env->type = SQL_HANDLE_ENV;
 	env->sql = mdb_sql_init();
 	env->connections = g_ptr_array_new();
+    env->diagrecs = g_ptr_array_new();
 	*phenv=env;
 	return SQL_SUCCESS;
 }
@@ -586,8 +593,10 @@ static SQLRETURN SQL_API _SQLAllocStmt(
 	dbc = (struct _hdbc *) hdbc;
 
 	stmt = (SQLHSTMT) g_malloc0(sizeof(struct _hstmt));
+    stmt->type = SQL_HANDLE_STMT;
 	stmt->hdbc=dbc;
 	g_ptr_array_add(dbc->statements, stmt);
+    stmt->diagrecs = g_ptr_array_new();
 
 	*phstmt = stmt;
 	return SQL_SUCCESS;
@@ -1274,6 +1283,8 @@ static SQLRETURN SQL_API _SQLFreeConnect(
 		return SQL_INVALID_HANDLE;
 
 	FreeConnectParams(dbc->params);
+    diag_reset(dbc->diagrecs);
+    g_ptr_array_free(dbc->diagrecs, TRUE);
 	g_ptr_array_free(dbc->statements, TRUE);
 	g_free(dbc);
 
@@ -1299,6 +1310,9 @@ static SQLRETURN SQL_API _SQLFreeEnv(
 		strcpy(sqlState, "HY010");
 		return SQL_ERROR;
 	}
+
+    diag_reset(env->diagrecs);
+    g_ptr_array_free(env->diagrecs, TRUE);
 	g_ptr_array_free(env->connections, TRUE);
 	mdb_sql_exit(env->sql);
 	g_free(env);
@@ -1327,6 +1341,8 @@ static SQLRETURN SQL_API _SQLFreeStmt(
 			return SQL_INVALID_HANDLE;
 		mdb_sql_reset(sql);
 		unbind_columns(stmt);
+        diag_reset(stmt->diagrecs);
+        g_ptr_array_free(stmt->diagrecs, TRUE);
 		g_free(stmt);
 	} else if (fOption==SQL_CLOSE) {
 		stmt->rows_affected = 0;
@@ -1365,6 +1381,45 @@ SQLRETURN SQL_API SQLGetCursorName(
 {
 	TRACE("SQLGetCursorName");
 	return SQL_SUCCESS;
+}
+
+static void diag_addrec(GPtrArray *diagrecs, char *sqlState, int nativeErr, char *errMsg)
+{
+    struct _diagrec *dr;
+
+    dr = (struct _diagrec *) g_malloc0(sizeof(struct _diagrec));
+
+    strcpy(dr->sqlState, sqlState);
+    dr->nativeErr = nativeErr;
+    dr->errMsg = (char *) g_malloc0(strlen(errMsg)+1);
+    strcpy(dr->errMsg, errMsg);
+}
+
+static void diag_reset(GPtrArray *diagrecs)
+{
+    struct _diagrec *dr;
+    
+    while(diagrecs->len)
+    {
+        dr = (struct _diagrec *) g_ptr_array_index(diagrecs, 0);
+        g_free(dr->errMsg);
+        g_free(dr);
+        g_ptr_array_remove_index(diagrecs, 0);
+    }
+}
+
+SQLRETURN SQL_API SQLGetDiagRec(
+    SQLSMALLINT        HandleType,
+    SQLHANDLE          Handle,
+    SQLSMALLINT        RecNumber,
+    SQLCHAR           *SQLState,
+    SQLINTEGER        *NativeErrorPtr,
+    SQLCHAR           *MessageText,
+    SQLSMALLINT        BufferLength,
+    SQLSMALLINT       *TextLengthPtr)
+{
+    TRACE("SQLGetDiagRec");
+    return SQL_SUCCESS;
 }
 
 SQLRETURN SQL_API SQLNumResultCols(
@@ -1916,7 +1971,7 @@ SQLRETURN SQL_API SQLGetFunctions(
 			//_set_func_exists(pfExists,SQL_API_SQLGETDESCFIELD);
 			//_set_func_exists(pfExists,SQL_API_SQLGETDESCREC);
 			//_set_func_exists(pfExists,SQL_API_SQLGETDIAGFIELD);
-			//_set_func_exists(pfExists,SQL_API_SQLGETDIAGREC);
+			_set_func_exists(pfExists,SQL_API_SQLGETDIAGREC);
 			//_set_func_exists(pfExists,SQL_API_SQLGETENVATTR);
 			_set_func_exists(pfExists,SQL_API_SQLGETFUNCTIONS);
 			_set_func_exists(pfExists,SQL_API_SQLGETINFO);
@@ -2010,6 +2065,7 @@ SQLRETURN SQL_API SQLGetFunctions(
 		case SQL_API_SQLGETCONNECTOPTION:
 		case SQL_API_SQLGETCURSORNAME:
 		case SQL_API_SQLGETDATA:
+		case SQL_API_SQLGETDIAGREC:
 		case SQL_API_SQLGETFUNCTIONS:
 		case SQL_API_SQLGETINFO:
 		case SQL_API_SQLGETSTMTATTR:
