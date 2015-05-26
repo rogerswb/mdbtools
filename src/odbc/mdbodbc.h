@@ -40,19 +40,23 @@ struct _diagrec {
     int nativeErr;
     char *errMsg;
 };
-struct _handle {
+
+typedef struct {
     int type;
     GPtrArray *diagrecs;
-};
+    int errRec; /* This is a placeholder for SQLError */
+} _handle;
 struct _henv {
-     int type;
+    int type;
     GPtrArray *diagrecs;
+    int errRec;
 	MdbSQL *sql;
 	GPtrArray *connections;
 };
 struct _hdbc {
     int type;
     GPtrArray *diagrecs;
+    int errRec;
 	struct _henv *henv;
 	ConnectParams* params;
 	GPtrArray *statements;
@@ -60,6 +64,7 @@ struct _hdbc {
 struct _hstmt {
     int type;
     GPtrArray *diagrecs;
+    int errRec;
 	struct _hdbc *hdbc;
 	/* reminder to self: the following is here for testing purposes.
 	 * please make dynamic before checking in 
